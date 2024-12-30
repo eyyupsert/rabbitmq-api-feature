@@ -1,0 +1,35 @@
+# Node.js modülleri
+rabbit-backend/node_modules/
+rabbit-front/node_modules/
+package-lock.json
+
+# Temporary files
+*.log
+*.tmp
+
+# IDE ve editör dosyaları
+.vscode/
+.idea/
+*.iml
+
+# Sistem dosyaları
+.DS_Store
+Thumbs.db
+
+# Build ve çıktı dosyaları
+dist/
+build/
+
+# Temporary Babel, ESLint ve diğer cache dosyaları
+.cache/
+.eslintcache
+
+# Test coverage raporları
+coverage/
+
+# Yarn ve diğer paket yöneticisi dosyaları
+yarn.lock
+.pnp.*
+.pnp.js
+
+

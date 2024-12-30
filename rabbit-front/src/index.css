@@ -1,0 +1,18 @@
+body {
+  background-color: #f8f9fa;
+  margin: 0;
+}
+
+.card {
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  font-size: 1.8rem;
+  color: #343a40;
+}
+
+button {
+  font-weight: bold;
+}
