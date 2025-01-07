@@ -3,9 +3,6 @@ const { connectToRabbitMQ, publishToQueue, consumeFromQueue } = require('../serv
 async function connect(req, res) {
     try {
         const resp = await connectToRabbitMQ(req.body.username, req.body.password);
-        console.log("test-resp", req.body);
-
-        await connectToRabbitMQ(req.body.username, req.body.password);
         res.status(200).json({ message: 'RabbitMQ connection successful', response: resp });
     } catch (err) {
         res.status(500).json({ error: 'Failed to connect to RabbitMQ' });

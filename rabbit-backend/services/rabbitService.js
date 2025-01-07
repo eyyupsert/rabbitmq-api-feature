@@ -2,13 +2,18 @@ const amqplib = require('amqplib');
 const { RABBITMQ_URL,  RABBITMQ_FRONTEND_URL } = require('../config/rabbitConfig');
 const axios = require('axios');
 
-function getRabbitConnectionUri(username, password) {
-    return  `amqp://${username}:${password}@${RABBITMQ_URL}`;
+function getRabbitConnectionUri(username, password, virtualHost = null) {
+    console.log("vh", virtualHost);
+    if (virtualHost != null) {
+        return  `amqp://${username}:${password}@${RABBITMQ_URL}/${encodeURIComponent(virtualHost)}`;
+    } else {
+        return  `amqp://${username}:${password}@${RABBITMQ_URL}`;
+    }
 }
 
 async function getVhostNames(username, password) {
     try {
-        const response = await axios.get(RABBITMQ_FRONTEND_URL + 'api/vhosts', {
+        const response = await axios.get(RABBITMQ_FRONTEND_URL + '/api/vhosts', {
             headers: { Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64') }
         });
 
@@ -59,9 +64,7 @@ async function connectToRabbitMQ(username, password) {
 
 async function connectToRabbitMqWithVirtualHost(environment, username, password, virtualHost) {
     try {
-        //const amqpUrl = `amqp://${username}:${password}@${RABBITMQ_URL}/${encodeURIComponent(virtualHost)}`;
-
-        const connection = await amqplib.connect(getRabbitConnectionUri(username, password));
+        const connection = await amqplib.connect(getRabbitConnectionUri(username, password, virtualHost));
 
         console.log(`Connected to RabbitMQ on virtual host: "${virtualHost}"`);
 
