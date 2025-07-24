@@ -24,6 +24,29 @@ async function getVhostNames(username, password) {
     }
 }
 
+async function getQueuesByVHost(username, password, virtualHost) {
+    try {
+        console.log(`Fetching queues for vhost: ${virtualHost}`);
+        console.log(`API URL: ${RABBITMQ_FRONTEND_URL}/api/queues/${encodeURIComponent(virtualHost)}`);
+        
+        const response = await axios.get(RABBITMQ_FRONTEND_URL + `/api/queues/${encodeURIComponent(virtualHost)}`, {
+            headers: { Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64') }
+        });
+
+        console.log(`Queues API response status: ${response.status}`);
+        console.log(`Queues data:`, response.data);
+
+        return response.data.map((queue) => queue.name);
+    } catch (error) {
+        console.error('Error fetching queues:', error.message);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
+        throw error;
+    }
+}
+
 async function getQueueWithVHostName(username, password) {
     try {
         const response = await axios.get(RABBITMQ_FRONTEND_URL + '/api/vhosts', {
@@ -111,7 +134,7 @@ async function publishToQueue(environment, username, password, queueName, virtua
 }
 
 
-async function consumeFromQueue(environment, username, password, queueName, virtualHost) {
+async function consumeFromQueue(environment, username, password, queueName, virtualHost, deleteMessages = false) {
     const connection = await connectToRabbitMqWithVirtualHost(environment, username, password, virtualHost);
     const ch = await connection.createChannel();
 
@@ -121,18 +144,48 @@ async function consumeFromQueue(environment, username, password, queueName, virt
     const messages = [];
 
     try {
-        while (true) {
-            const msg = await ch.get(queueName, { noAck: false });
+        // Kuyruk bilgilerini al
+        const queueInfo = await ch.assertQueue(queueName, { durable: true });
+        const messageCount = queueInfo.messageCount;
+        console.log(`Queue "${queueName}" has ${messageCount} messages`);
 
+        // Mesajları oku
+        for (let i = 0; i < messageCount; i++) {
+            const msg = await ch.get(queueName, { noAck: false });
+            
             if (!msg) break;
 
-            const message = msg.content.toString();
-            messages.push(message);
-            ch.ack(msg);
-            console.log(`Message received from queue "${queueName}":`, message);
+            try {
+                // Mesajı string olarak al
+                const messageContent = msg.content.toString();
+                console.log(`Raw message from queue "${queueName}" (${i + 1}/${messageCount}):`, messageContent);
+                
+                // Mesajı JSON olarak parse etmeyi dene
+                try {
+                    const jsonMessage = JSON.parse(messageContent);
+                    console.log(`Parsed JSON message:`, jsonMessage);
+                    // JSON olarak parse edilebiliyorsa, string formatında ekle
+                    messages.push(messageContent);
+                } catch (parseError) {
+                    // JSON olarak parse edilemiyorsa, ham haliyle ekle
+                    console.log(`Message is not valid JSON, using raw content`);
+                    messages.push(messageContent);
+                }
+            } catch (messageError) {
+                console.error(`Error processing message:`, messageError);
+                // Hata durumunda da mesajı ekle
+                messages.push(msg.content.toString());
+            }
+            
+            // deleteMessages true ise mesajı kuyruktan sil
+            if (deleteMessages) {
+                ch.ack(msg);
+                console.log(`Message acknowledged and removed from queue "${queueName}"`);
+            }
         }
 
         await connection.close();
+        console.log(`Returning ${messages.length} messages from queue "${queueName}"`);
         return messages;
     } catch (error) {
         console.error("Error while consuming messages:", error.message);
@@ -145,4 +198,5 @@ module.exports = {
     connectToRabbitMQ,
     publishToQueue,
     consumeFromQueue,
+    getQueuesByVHost,
 };

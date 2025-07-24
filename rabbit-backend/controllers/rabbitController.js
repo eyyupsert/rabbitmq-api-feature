@@ -1,4 +1,4 @@
-const { connectToRabbitMQ, publishToQueue, consumeFromQueue } = require('../services/rabbitService');
+const { connectToRabbitMQ, publishToQueue, consumeFromQueue, getQueuesByVHost } = require('../services/rabbitService');
 
 async function connect(req, res) {
     try {
@@ -6,6 +6,24 @@ async function connect(req, res) {
         res.status(200).json({ message: 'RabbitMQ connection successful', response: resp });
     } catch (err) {
         res.status(500).json({ error: 'Failed to connect to RabbitMQ' });
+    }
+}
+
+async function getQueues(req, res) {
+    try {
+        const { username, password, virtualHost } = req.body;
+        console.log("getQueues request:", { username, virtualHost });
+        
+        if (!virtualHost) {
+            return res.status(400).json({ error: 'virtualHost is required' });
+        }
+        
+        const queues = await getQueuesByVHost(username, password, virtualHost);
+        console.log("Queues fetched successfully:", queues);
+        res.status(200).json({ queues });
+    } catch (err) {
+        console.error("Error fetching queues:", err);
+        res.status(500).json({ error: `Failed to fetch queues: ${err.message}` });
     }
 }
 
@@ -27,19 +45,27 @@ async function produce(req, res) {
 }
 
 async function consume(req, res) {
-    const { username, password, queueName, virtualHost } = req.body;
+    const { username, password, queueName, virtualHost, deleteMessages } = req.body;
     if (!queueName || !virtualHost) {
         return res.status(400).json({ error: 'queueName and virtualHost are required' });
     }
 
     try {
-        console.log("Consumed messages 1");
-        const messages = await consumeFromQueue("queueName", username, password, queueName, virtualHost);
-        console.log("Consumed messages:", messages);
+        console.log("Consumed messages request:", { 
+            queueName, 
+            virtualHost, 
+            deleteMessages: deleteMessages === true || deleteMessages === "true" ? "true" : "false" 
+        });
+        
+        // deleteMessages parametresini boolean'a çevir
+        const shouldDeleteMessages = deleteMessages === true || deleteMessages === "true";
+        
+        const messages = await consumeFromQueue("queueName", username, password, queueName, virtualHost, shouldDeleteMessages);
+        console.log(`Consumed ${messages.length} messages from queue "${queueName}"`);
         res.status(200).json({ messages });
     } catch (err) {
-        console.error("Error consuming messages:", err.message);
-        res.status(500).json({ error: 'Failed to consume messages' });
+        console.error("Error consuming messages:", err);
+        res.status(500).json({ error: `Failed to consume messages: ${err.message}` });
     }
 }
 
@@ -47,4 +73,5 @@ module.exports = {
     connect,
     produce,
     consume,
+    getQueues,
 };

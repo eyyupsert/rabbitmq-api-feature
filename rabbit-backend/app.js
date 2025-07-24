@@ -3,8 +3,21 @@ const cors = require('cors');
 const rabbitRoutes = require('./routes/rabbitRoutes');
 
 const app = express();
-app.use(cors());
+
+// CORS ayarları
+app.use(cors({
+    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
+
 app.use(express.json());
+
+// Middleware for logging
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
 
 // RabbitMQ routes
 app.use('/api/rabbit', rabbitRoutes);
