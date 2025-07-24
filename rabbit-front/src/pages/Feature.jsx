@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const Feature = () => {
@@ -8,11 +8,18 @@ const Feature = () => {
     const { data } = location.state || {};
     const [selectedVh, setSelectedVh] = useState("");
 
+    useEffect(() => {
+        console.log("Feature sayfası data:", data);
+        console.log("Virtual hosts:", data?.response);
+    }, [data]);
+
     const handleProduce = () => {
+        console.log("Produce için seçilen virtual host:", selectedVh);
         navigate("/produce", { state: { vhName: selectedVh } });
     };
 
     const handleConsume = () => {
+        console.log("Consume için seçilen virtual host:", selectedVh);
         navigate("/consume", { state: { vhName: selectedVh } });
     };
 

@@ -51,18 +51,26 @@ async function consume(req, res) {
     }
 
     try {
-        console.log("Consumed messages request:", { 
-            queueName, 
-            virtualHost, 
-            deleteMessages: deleteMessages === true || deleteMessages === "true" ? "true" : "false" 
-        });
-        
         // deleteMessages parametresini boolean'a çevir
         const shouldDeleteMessages = deleteMessages === true || deleteMessages === "true";
         
+        console.log("Consume request:", { 
+            queueName, 
+            virtualHost, 
+            deleteMessages: shouldDeleteMessages ? "true" : "false" 
+        });
+        
+        // Mesajları oku ve eğer isteniyorsa sil
         const messages = await consumeFromQueue("queueName", username, password, queueName, virtualHost, shouldDeleteMessages);
+        
         console.log(`Consumed ${messages.length} messages from queue "${queueName}"`);
-        res.status(200).json({ messages });
+        console.log(`Messages ${shouldDeleteMessages ? 'were deleted' : 'were kept'} in the queue`);
+        
+        res.status(200).json({ 
+            messages,
+            messagesDeleted: shouldDeleteMessages,
+            count: messages.length
+        });
     } catch (err) {
         console.error("Error consuming messages:", err);
         res.status(500).json({ error: `Failed to consume messages: ${err.message}` });

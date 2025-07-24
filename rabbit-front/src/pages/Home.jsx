@@ -16,13 +16,24 @@ const Home = () => {
             dispatch(setUsername(username));
             dispatch(setPassword(password));
 
+            console.log("RabbitMQ'ya bağlanılıyor...", { username });
             const response = await connectToRabbitMQ(username, password);
             console.log("Home Page Response:", response.data);
+
+            if (!response.data.response || response.data.response.length === 0) {
+                setError("Erişilebilir virtual host bulunamadı.");
+                return;
+            }
 
             navigate("/feature", { state: { data: response.data } });
         } catch (err) {
             console.error("Bağlantı hatası:", err);
-            setError("Bağlantı kurulamadı, bilgilerinizi kontrol edin.");
+            if (err.response) {
+                console.error("Hata detayları:", err.response.data);
+                setError(`Bağlantı kurulamadı: ${err.response.data.error || "Bilgilerinizi kontrol edin."}`);
+            } else {
+                setError("Bağlantı kurulamadı, bilgilerinizi kontrol edin.");
+            }
         }
     };
 

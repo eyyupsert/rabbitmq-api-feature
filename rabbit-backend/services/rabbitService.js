@@ -109,16 +109,29 @@ async function publishToQueue(environment, username, password, queueName, virtua
 
     try {
         for (const message of messages) {
-            const jsonMessage = JSON.stringify(message);
+            // Her mesajın JSON formatında olmasını sağla
+            const jsonMessage = typeof message === 'string' 
+                ? message // Zaten string ise (JSON string olduğunu varsayıyoruz)
+                : JSON.stringify(message); // Obje ise JSON string'e dönüştür
 
             await new Promise((resolve, reject) => {
-                ch.sendToQueue(queueName, Buffer.from(jsonMessage), { contentType: 'application/json' }, (err) => {
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve();
+                ch.sendToQueue(
+                    queueName, 
+                    Buffer.from(jsonMessage), 
+                    { 
+                        contentType: 'application/json',
+                        headers: {
+                            'content-type': 'application/json'
+                        }
+                    }, 
+                    (err) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
                     }
-                });
+                );
             });
 
             console.log(`Message sent to queue "${queueName}":`, jsonMessage);
@@ -142,6 +155,7 @@ async function consumeFromQueue(environment, username, password, queueName, virt
     await ch.checkQueue(queueName);
 
     const messages = [];
+    const messageObjects = []; // Mesaj objelerini saklayacağız
 
     try {
         // Kuyruk bilgilerini al
@@ -149,11 +163,23 @@ async function consumeFromQueue(environment, username, password, queueName, virt
         const messageCount = queueInfo.messageCount;
         console.log(`Queue "${queueName}" has ${messageCount} messages`);
 
+        if (messageCount === 0) {
+            console.log(`Queue "${queueName}" is empty`);
+            await connection.close();
+            return [];
+        }
+
         // Mesajları oku
         for (let i = 0; i < messageCount; i++) {
             const msg = await ch.get(queueName, { noAck: false });
             
-            if (!msg) break;
+            if (!msg) {
+                console.log(`No more messages in queue "${queueName}" after ${i} messages`);
+                break;
+            }
+
+            // Mesaj objesini sakla (daha sonra silmek için)
+            messageObjects.push(msg);
 
             try {
                 // Mesajı string olarak al
@@ -176,12 +202,28 @@ async function consumeFromQueue(environment, username, password, queueName, virt
                 // Hata durumunda da mesajı ekle
                 messages.push(msg.content.toString());
             }
+        }
+
+        // Tüm mesajları okuduktan sonra, eğer silinmesi isteniyorsa sil
+        if (deleteMessages && messageObjects.length > 0) {
+            console.log(`Deleting ${messageObjects.length} messages from queue "${queueName}"`);
             
-            // deleteMessages true ise mesajı kuyruktan sil
-            if (deleteMessages) {
-                ch.ack(msg);
-                console.log(`Message acknowledged and removed from queue "${queueName}"`);
+            // Tüm mesajları sil
+            for (const msg of messageObjects) {
+                try {
+                    ch.ack(msg);
+                } catch (ackError) {
+                    console.error(`Error acknowledging message:`, ackError);
+                }
             }
+            
+            console.log(`Deleted ${messageObjects.length} messages from queue "${queueName}"`);
+            
+            // Kuyruk durumunu kontrol et
+            const queueInfoAfterDelete = await ch.assertQueue(queueName, { durable: true });
+            console.log(`Queue "${queueName}" now has ${queueInfoAfterDelete.messageCount} messages`);
+        } else {
+            console.log(`Keeping ${messageObjects.length} messages in queue "${queueName}"`);
         }
 
         await connection.close();
@@ -189,7 +231,14 @@ async function consumeFromQueue(environment, username, password, queueName, virt
         return messages;
     } catch (error) {
         console.error("Error while consuming messages:", error.message);
-        await connection.close();
+        
+        try {
+            // Bağlantıyı kapatmaya çalış
+            await connection.close();
+        } catch (closeError) {
+            console.error("Error closing connection:", closeError.message);
+        }
+        
         throw error;
     }
 }
